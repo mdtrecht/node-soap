@@ -189,7 +189,7 @@ export class Server extends EventEmitter {
 
   private _initializeOptions(options: IServerOptions) {
     this.wsdl.options.attributesKey = options.attributesKey || 'attributes';
-    this.onewayOptions.statusCode = this.onewayOptions.responseCode || 200;
+    this.onewayOptions.statusCode = this.onewayOptions.responseCode || 200;
     this.onewayOptions.emptyBody = !!this.onewayOptions.emptyBody;
   }
 
@@ -437,20 +437,22 @@ export class Server extends EventEmitter {
     const args = options.args;
     const style = options.style;
 
-    if (this.soapHeaders) {
-      headers = this.soapHeaders.map((header) => {
-        if (typeof header === 'function') {
-          return header(methodName, args, options.headers, req);
-        } else {
-          return header;
-        }
-      }).join('\n');
-    }
+    function getSoapHeaders() {
+      if (this.soapHeaders) {
+          return this.soapHeaders.map((header) => {
+          if (typeof header === 'function') {
+            return header(methodName, args, options.headers, req);
+          } else {
+            return header;
+          }
+        }).join('\n');
+      }
+   }
 
     try {
       method = this.services[serviceName][portName][methodName];
     } catch (error) {
-      return callback(this._envelope('', headers, includeTimestamp));
+      return callback(this._envelope('', getSoapHeaders(), includeTimestamp));
     }
 
     let handled = false;
@@ -481,7 +483,7 @@ export class Server extends EventEmitter {
         const element = this.wsdl.definitions.services[serviceName].ports[portName].binding.methods[methodName].output;
         body = this.wsdl.objectToDocumentXML(outputName, result, element.targetNSAlias, element.targetNamespace);
       }
-      callback(this._envelope(body, headers, includeTimestamp));
+      callback(this._envelope(body, getSoapHeaders(), includeTimestamp));
     };
 
     if (!this.wsdl.definitions.services[serviceName].ports[portName].binding.methods[methodName].output) {
@@ -489,7 +491,7 @@ export class Server extends EventEmitter {
       handled = true;
       body = '';
       if (this.onewayOptions.emptyBody) {
-        body = this._envelope('', headers, includeTimestamp);
+        body = this._envelope('', getSoapHeaders(), includeTimestamp);
       }
       callback(body, this.onewayOptions.responseCode);
     }
@@ -506,7 +508,7 @@ export class Server extends EventEmitter {
     };
 
     const result = method(args, methodCallback, options.headers, req);
-    if (typeof result !== 'undefined') {
+    if (typeof result !== 'undefined' &&  typeof result.then !== 'function' ) {
       if (isPromiseLike<any>(result)) {
         result.then((value) => {
           handleResult(null, value);
